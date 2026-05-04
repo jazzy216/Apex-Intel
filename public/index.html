@@ -1050,53 +1050,19 @@ async function fetchRankings(cat, per) {
   const k = `${cat}|${per}`;
   if (cache[k] && Date.now() - cache[k].ts < 600_000) return cache[k].data;
 
-  const PL = { day:'today (May 2026)', month:'May 2026', year:'2026', alltime:'all time as of 2026' };
-  const prompts = {
-    ai:    `Rank the top 7 AI language/multimodal models for ${PL[per]}. Evaluate: benchmark scores (MMLU, HumanEval, GPQA), throughput, context length, multimodal skills, cost, API uptime.`,
-    vps:   `Rank the top 7 VPS providers for ${PL[per]}. Evaluate: verified uptime %, network speed, NVMe I/O, support SLA, geographic coverage, DDoS protection, price-to-performance.`,
-    vpn:   `Rank the top 7 VPN services for ${PL[per]} on security and privacy. Evaluate: third-party audits, no-logs enforcement, WireGuard/OpenVPN quality, kill-switch reliability, jurisdiction, server count.`,
-    cloud: `Rank the top 7 cloud platforms for ${PL[per]}. Evaluate: contractual SLA %, actual measured uptime, incident history, compute benchmarks, service breadth, egress costs, enterprise support.`
-  };
-
-  const sys = `You are a senior technology analyst publishing authoritative infrastructure rankings.
-Respond ONLY with raw JSON — no markdown, no explanation, no fences.
-
-Schema:
-{
-  "rankings": [
-    {
-      "name":           "Short brand name",
-      "detail":         "One crisp differentiator phrase",
-      "score":          95,
-      "primaryMetric":  "99.99%",
-      "secondaryMetric":"30d uptime",
-      "uptimePct":      99.99,
-      "trend":          "up",
-      "highlight":      "Analyst insight sentence, max 12 words"
-    }
-  ],
-  "summary":  "Two-sentence category overview.",
-  "dataNote": "Brief methodology note."
-}
-
-Provide exactly 7 items. Use real provider names and accurate current data. Score = weighted composite 0–100.`;
-
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
+  // Calls our Vercel serverless proxy — API key lives on the server, never the browser
+  const r = await fetch('/api/rankings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1200,
-      system: sys,
-      messages: [{ role: 'user', content: prompts[cat] }]
-    })
+    body: JSON.stringify({ category: cat, period: per })
   });
 
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const data = await r.json();
-  let raw = data.content.map(b => b.text || '').join('');
-  raw = raw.replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(raw);
+  if (!r.ok) {
+    const errData = await r.json().catch(() => ({}));
+    throw new Error(errData.error || `HTTP ${r.status}`);
+  }
+
+  const parsed = await r.json();
   cache[k] = { ts: Date.now(), data: parsed };
   return parsed;
 }
