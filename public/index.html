@@ -1051,7 +1051,7 @@ async function fetchRankings(cat, per) {
   if (cache[k] && Date.now() - cache[k].ts < 600_000) return cache[k].data;
 
   // Calls our Vercel serverless proxy — API key lives on the server, never the browser
-  const r = await fetch('pages/api/rankings', {
+  const r = await fetch('/api/rankings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ category: cat, period: per })
